@@ -23,6 +23,4 @@ test.py
 
 
 # use this
-pyinstaller --onefile --name signwave \
---add-data "model1.p:." \
-main.py
+pyinstaller --onefile --name signwave --add-data "model1.p:." main.py
