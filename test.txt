@@ -5,6 +5,7 @@ block_cipher = None
 
 # Collect all necessary dependencies
 hidden_imports = [
+    # Uvicorn imports
     'uvicorn',
     'uvicorn.logging',
     'uvicorn.loops',
@@ -16,15 +17,52 @@ hidden_imports = [
     'uvicorn.protocols.websockets.auto',
     'uvicorn.lifespan',
     'uvicorn.lifespan.on',
+    
+    # Scikit-learn imports
     'sklearn',
+    'sklearn.tree',
+    'sklearn.ensemble',
+    'sklearn.ensemble._forest',
+    'sklearn.neighbors',
+    'sklearn.utils',
+    'sklearn.utils._typedefs',
+    'sklearn.utils._heap',
+    'sklearn.utils._sorting',
+    'sklearn.utils._vector_sentinel',
+    'sklearn.utils._weight_vector',
+    'sklearn.utils._bunch',
+    'sklearn.utils.murmurhash',
+    'sklearn.utils.validation',
+    'sklearn.utils.fixes',
+    'sklearn.utils.extmath',
+    'sklearn.utils._pprint',
+    'sklearn.utils.multiclass',
+    'sklearn.utils._encode',
+    'sklearn.utils.metaestimators',
+    'sklearn.utils._param_validation',
+    'sklearn.utils.parallel',
+    'sklearn.utils.sparsefuncs',
+    'sklearn.metrics',
+    'sklearn.metrics.pairwise',
+    'sklearn.preprocessing',
+    'sklearn.preprocessing._data',
+    
+    # Other imports
     'mediapipe',
     'fastapi',
     'cv2',
-    'numpy'
+    'numpy',
+    'asyncio',
+    'typing',
+    'starlette.middleware',
+    'starlette.middleware.cors',
 ]
 
 # Collect all mediapipe data files
 mediapipe_datas = collect_data_files('mediapipe')
+
+# Collect scikit-learn data files
+sklearn_datas = collect_data_files('sklearn')
 
 a = Analysis(
     ['main.py'],  # Replace with your script name
@@ -33,6 +71,7 @@ a = Analysis(
     datas=[
         ('model1.p', '.'),  # Include your model file
         *mediapipe_datas,  # Include mediapipe data files
+        *sklearn_datas,    # Include sklearn data files
     ],
     hiddenimports=hidden_imports,
     hookspath=[],
@@ -65,6 +104,6 @@ exe = EXE(
     upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=True,  # Set to False if you don't want console window
+    console=True  # Set to False if you don't want console window
     # icon='app_icon.ico'  # Optional: Add your app icon
 )
