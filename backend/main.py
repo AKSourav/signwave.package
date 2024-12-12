@@ -4,16 +4,28 @@ import mediapipe as mp
 import numpy as np
 import warnings
 import base64
-import json
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+import uvicorn
+import os
+import sys
+
+def resource_path(relative_path):
+    """Get absolute path to resource, works for dev and for PyInstaller"""
+    try:
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
 
 app = FastAPI()
 
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, replace with specific origins
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -25,14 +37,11 @@ mp_hands = mp.solutions.hands
 hands = mp_hands.Hands(static_image_mode=False, max_num_hands=2, min_detection_confidence=0.3)
 pose = mp_pose.Pose(static_image_mode=False, min_detection_confidence=0.3)
 
-# Load the pre-trained models
-with open('./modelislv17.p', 'rb') as file:
-    model_dict_full = pickle.load(file)
-model_full = model_dict_full['model']
-
-with open('./modelislv10.p', 'rb') as file:
-    model_dict_hands = pickle.load(file)
-model_hands = model_dict_hands['model']
+# Load the pre-trained model
+model_path = resource_path('modelislv17.p')
+with open(model_path, 'rb') as file:
+    model_dict = pickle.load(file)
+model = model_dict['model']
 
 # Variables for tracking predictions
 prev_character = None
@@ -40,24 +49,6 @@ consecutive_count = 0
 required_count = 10
 current_word = []
 sentence = []
-
-# WebSocket connection manager
-class ConnectionManager:
-    def __init__(self):
-        self.active_connections: list[WebSocket] = []
-
-    async def connect(self, websocket: WebSocket):
-        await websocket.accept()
-        self.active_connections.append(websocket)
-
-    def disconnect(self, websocket: WebSocket):
-        self.active_connections.remove(websocket)
-
-    async def send_message(self, message: dict, websocket: WebSocket):
-        await websocket.send_json(message)
-
-manager = ConnectionManager()
-manager1 = ConnectionManager()
 
 def process_frame(frame_data):
     # Decode base64 image
@@ -108,17 +99,12 @@ def process_frame(frame_data):
         rh = rh[:42] + [0] * max(0, 42 - len(rh))
         pose_data = pose_data[:99] + [0] * max(0, 99 - len(pose_data))
         
-        # Prepare data for both models
-        data_aux_full = pose_data + lh + rh
-        data_aux_hands = lh + rh
-        
-        # Get predictions from both models
-        prediction_full = model_full.predict([np.asarray(data_aux_full)])
-        prediction_hands = model_hands.predict([np.asarray(data_aux_hands)])
+        # Prepare data for prediction
+        data_aux = pose_data + lh + rh
+        prediction = model.predict([np.asarray(data_aux)])
         
         return {
-            'prediction_full': prediction_full[0],
-            'prediction_hands': prediction_hands[0],
+            'prediction': prediction[0],
             'bounds': {
                 'x1': int(min(x_all) * W) - 10,
                 'y1': int(min(y_all) * H) - 10,
@@ -129,10 +115,10 @@ def process_frame(frame_data):
     return None
 
 @app.websocket("/ws/full")
-async def websocket_endpoint_full(websocket: WebSocket):
+async def websocket_endpoint(websocket: WebSocket):
     global prev_character, consecutive_count, current_word, sentence
     
-    await manager.connect(websocket)
+    await websocket.accept()
     try:
         while True:
             # Receive base64 encoded frame
@@ -142,7 +128,7 @@ async def websocket_endpoint_full(websocket: WebSocket):
             result = process_frame(frame_data)
             
             if result:
-                predicted_character = result['prediction_full']
+                predicted_character = result['prediction']
                 
                 # Handle consecutive detections
                 if predicted_character == prev_character:
@@ -158,33 +144,21 @@ async def websocket_endpoint_full(websocket: WebSocket):
                         current_word.append(predicted_character)
                 
                 # Send back the results
-                await manager.send_message({
+                await websocket.send_json({
                     'prediction': predicted_character,
                     'bounds': result['bounds'],
                     'current_word': ''.join(current_word),
                     'sentence': ' '.join(sentence)
-                }, websocket)
+                })
             
-    except WebSocketDisconnect:
-        manager.disconnect(websocket)
+    except Exception as e:
+        print(f"Error: {e}")
+    finally:
+        await websocket.close()
 
-@app.websocket("/ws/hands")
-async def websocket_endpoint_hands(websocket: WebSocket):
-    await manager1.connect(websocket)
-    try:
-        while True:
-            frame_data = await websocket.receive_text()
-            result = process_frame(frame_data)
-            
-            if result:
-                await manager1.send_message({
-                    'prediction': result['prediction_hands'],
-                    'bounds': result['bounds']
-                }, websocket)
-                
-    except WebSocketDisconnect:
-        manager.disconnect(websocket)
+def start_server():
+    """Function to start the server"""
+    uvicorn.run(app, host="0.0.0.0", port=9002)
 
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=9002)
+    start_server()
