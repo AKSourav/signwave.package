@@ -1,5 +1,5 @@
 # -*- mode: python ; coding: utf-8 -*-
-from PyInstaller.utils.hooks import collect_all
+from PyInstaller.utils.hooks import collect_all, collect_submodules
 
 block_cipher = None
 
@@ -31,7 +31,6 @@ hiddenimports = [
     'pickle',
     'base64',
     'json',
-    # Scikit-learn dependencies
     'sklearn',
     'sklearn.base',
     'sklearn.utils',
@@ -46,8 +45,13 @@ hiddenimports = [
     'sklearn.neighbors',
     'sklearn.metrics',
     'sklearn.svm',
-    'joblib'
-]
+    'joblib',
+    'torch',
+    'torch.nn',
+    'torch.utils',
+    'torch.utils.data',
+    'torchvision',
+] + collect_submodules('mediapipe')
 
 # Collect additional dependencies for MediaPipe
 mediapipe_ret = collect_all('mediapipe')
@@ -73,11 +77,15 @@ datas += sklearn_ret[0]
 binaries += sklearn_ret[1]
 hiddenimports += sklearn_ret[2]
 
-# Collect joblib dependencies (used by scikit-learn for model loading)
-joblib_ret = collect_all('joblib')
-datas += joblib_ret[0]
-binaries += joblib_ret[1]
-hiddenimports += joblib_ret[2]
+# Collect PyTorch dependencies
+torch_ret = collect_all('torch')
+datas += torch_ret[0]
+binaries += torch_ret[1]
+hiddenimports += torch_ret[2]
+
+# Add environment variables
+import os
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 
 a = Analysis(
     ['main.py'],
@@ -116,7 +124,6 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='app_icon.ico'  # Optional: Add your icon file here
 )
 
 # Create a directory for additional files if needed
