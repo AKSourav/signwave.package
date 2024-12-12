@@ -6,14 +6,26 @@ import warnings
 import base64
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
-import json
+from fastapi.staticfiles import StaticFiles
+import uvicorn
+import os
+import sys
+
+def resource_path(relative_path):
+    """Get absolute path to resource, works for dev and for PyInstaller"""
+    try:
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
 
 app = FastAPI()
 
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, replace with specific origins
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -26,7 +38,8 @@ hands = mp_hands.Hands(static_image_mode=False, max_num_hands=2, min_detection_c
 pose = mp_pose.Pose(static_image_mode=False, min_detection_confidence=0.3)
 
 # Load the pre-trained model
-with open('./modelislv17.p', 'rb') as file:
+model_path = resource_path('modelislv17.p')
+with open(model_path, 'rb') as file:
     model_dict = pickle.load(file)
 model = model_dict['model']
 
@@ -143,6 +156,9 @@ async def websocket_endpoint(websocket: WebSocket):
     finally:
         await websocket.close()
 
-if __name__ == "__main__":
-    import uvicorn
+def start_server():
+    """Function to start the server"""
     uvicorn.run(app, host="0.0.0.0", port=9002)
+
+if __name__ == "__main__":
+    start_server()
