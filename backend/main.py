@@ -11,6 +11,9 @@ import uvicorn
 import os
 import sys
 
+global it
+it= 0
+
 def resource_path(relative_path):
     """Get absolute path to resource, works for dev and for PyInstaller"""
     try:
@@ -51,6 +54,7 @@ current_word = []
 sentence = []
 
 def process_frame(frame_data):
+    global it
     # Decode base64 image
     img_bytes = base64.b64decode(frame_data.split(',')[1])
     nparr = np.frombuffer(img_bytes, np.uint8)
@@ -102,6 +106,15 @@ def process_frame(frame_data):
         # Prepare data for prediction
         data_aux = pose_data + lh + rh
         prediction = model.predict([np.asarray(data_aux)])
+        
+        if prediction[0] and prediction[0] != "null":
+            print("prediction[0]:", prediction[0])
+            
+            import json
+            with open(f'../inputs/input{it}-{prediction[0]}.json', 'w') as f:
+                json.dump({'input_data': data_aux}, f)
+                f.write('\n')
+            it+=1
         
         return {
             'prediction': prediction[0],
